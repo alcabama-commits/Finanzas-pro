@@ -1,0 +1,399 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+             (request.auth.token.email == 'camilomartg@gmail.com' || request.auth.token.email == 'imagina3ddesign@gmail.com') && 
+             request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    // Shared Product Catalog (Publicly readable, writable by any logged-in user)
+    match /catalog/{productId} {
+      allow list, get: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(productId) && isValidCatalogProduct(incoming());
+      allow update: if isSignedIn() && isValidId(productId) && isValidCatalogProduct(incoming());
+      allow delete: if isAdmin();
+
+      function isValidCatalogProduct(data) {
+        return data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+               data.store is string && data.store.size() > 0 && data.store.size() <= 150 &&
+               data.price is number && data.price >= 0 &&
+               data.stock is number && data.stock >= 0 &&
+               data.priceDate is string &&
+               (!data.keys().hasAll(['category']) || data.category is string) &&
+               (!data.keys().hasAll(['subcategory']) || data.subcategory is string) &&
+               (!data.keys().hasAll(['isRegular']) || data.isRegular is bool) &&
+               (!data.keys().hasAll(['minStock']) || data.minStock is number) &&
+               (!data.keys().hasAll(['updatedBy']) || data.updatedBy is string) &&
+               (data.keys().hasAll(['name', 'store', 'price', 'stock', 'priceDate']) && data.keys().size() <= 12);
+      }
+    }
+
+    // Shared Catalog Stores (Publicly readable, writable by any logged-in user)
+    match /catalog_stores/{storeId} {
+      allow list, get: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(storeId) && isValidCatalogStore(incoming());
+      allow delete: if isAdmin();
+
+      function isValidCatalogStore(data) {
+        return data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+               (!data.keys().hasAll(['type']) || data.type in ['store', 'provider', 'service', 'consumption']) &&
+               (!data.keys().hasAll(['logoUrl']) || data.logoUrl is string || data.logoUrl == null) &&
+               (!data.keys().hasAll(['logoFileId']) || data.logoFileId is string || data.logoFileId == null) &&
+               (!data.keys().hasAll(['latitude']) || data.latitude is number || data.latitude == null) &&
+               (!data.keys().hasAll(['longitude']) || data.longitude is number || data.longitude == null) &&
+               (!data.keys().hasAll(['address']) || data.address is string || data.address == null) &&
+               (!data.keys().hasAll(['createdAt']) || data.createdAt is string) &&
+               (!data.keys().hasAll(['updatedAt']) || data.updatedAt is string) &&
+               (data.keys().hasAll(['name']) && data.keys().size() <= 10);
+      }
+    }
+
+    // Product Price History (Readable only by super administrators, writable/creatable by any authenticated user on price change)
+    match /price_history/{historyId} {
+      allow list, get: if isAdmin();
+      allow create: if isSignedIn() && isValidId(historyId) && isValidPriceHistory(incoming());
+      allow update, delete: if false;
+
+      function isValidPriceHistory(data) {
+        return data.productId is string &&
+               data.productName is string &&
+               data.store is string &&
+               data.price is number &&
+               data.date is string &&
+               data.updatedByEmail is string &&
+               data.updatedByUid is string &&
+               (data.keys().hasAll(['productId', 'productName', 'store', 'price', 'date', 'updatedByEmail', 'updatedByUid']) && data.keys().size() <= 8);
+      }
+    }
+
+    // User Profile & Settings
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['monthlyLimit', 'billingCycle', 'updatedAt', 'email', 'displayName', 'photoURL', 'lastLogin'])
+      );
+
+      function isValidUser(data) {
+        return data.monthlyLimit is number && data.monthlyLimit >= 0 &&
+               data.billingCycle in ['15', '30'] &&
+               (data.keys().hasAll(['monthlyLimit', 'billingCycle']) && data.keys().size() >= 2);
+      }
+
+      // Accounts
+      match /accounts/{accountId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(accountId) && isValidAccount(incoming());
+        allow update: if isOwner(userId) && isValidId(accountId) && isValidAccount(incoming()) && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'balance', 'icon', 'color', 'updatedAt'])
+        );
+        allow delete: if isOwner(userId);
+
+        function isValidAccount(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 data.balance is number &&
+                 (data.keys().hasAll(['name', 'balance']) && data.keys().size() >= 2);
+        }
+      }
+
+      // Categories
+      match /categories/{categoryId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(categoryId) && isValidCategory(incoming());
+        allow update: if isOwner(userId) && isValidId(categoryId) && isValidCategory(incoming()) && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'type', 'icon', 'color', 'estimatedLimit', 'isAutoDebit', 'isNoCost', 'isEventual', 'updatedAt', 'subcategories', 'paymentType', 'fixedAmount', 'periodicity'])
+        );
+        allow delete: if isOwner(userId);
+
+        // Allow Admin to delete bad categories if configured
+        function isValidCategory(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 data.type in ['income', 'expense', 'purchase'] &&
+                 (data.keys().hasAll(['name', 'type']) && data.keys().size() >= 2);
+        }
+      }
+
+      // Purchase Categories
+      match /purchase_categories/{purchaseCategoryId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(purchaseCategoryId) && isValidPurchaseCategory(incoming());
+        allow update: if isOwner(userId) && isValidId(purchaseCategoryId) && isValidPurchaseCategory(incoming()) && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'subcategories', 'isCustom', 'updatedAt'])
+        );
+        allow delete: if isOwner(userId);
+
+        function isValidPurchaseCategory(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 data.subcategories is list &&
+                 (data.keys().hasAll(['name', 'subcategories']) && data.keys().size() <= 6);
+        }
+      }
+
+      // Purchase Products
+      match /purchase_products/{purchaseProductId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(purchaseProductId) && isValidPurchaseProduct(incoming()) &&
+                      exists(/databases/$(database)/documents/users/$(userId)/purchase_categories/$(incoming().categoryId));
+        allow update: if isOwner(userId) && isValidId(purchaseProductId) && isValidPurchaseProduct(incoming()) && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'categoryId', 'subcategory', 'isRegular', 'defaultPrice', 'lastStore', 'stock', 'minStock', 'consumptionPercentage', 'updatedAt'])
+        );
+        allow delete: if isOwner(userId);
+
+        function isValidPurchaseProduct(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 data.categoryId is string &&
+                 data.subcategory is string &&
+                 data.isRegular is bool &&
+                 data.defaultPrice is number &&
+                 data.lastStore is string &&
+                 data.stock is number &&
+                 (!data.keys().hasAll(['minStock']) || data.minStock is number) &&
+                 (!data.keys().hasAll(['consumptionPercentage']) || data.consumptionPercentage is number) &&
+                 (data.keys().hasAll(['name', 'categoryId', 'subcategory', 'isRegular', 'defaultPrice', 'lastStore', 'stock']) && data.keys().size() <= 14);
+        }
+      }
+
+      // Purchase Stores
+      match /purchase_stores/{purchaseStoreId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(purchaseStoreId) && isValidPurchaseStore(incoming());
+        allow update: if isOwner(userId) && isValidId(purchaseStoreId) && isValidPurchaseStore(incoming()) && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'logoUrl', 'logoFileId', 'updatedAt'])
+        );
+        allow delete: if isOwner(userId);
+
+        // Store validation helper
+        function isValidPurchaseStore(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 (data.keys().hasAll(['name']) && data.keys().size() <= 6);
+        }
+      }
+
+      // Transactions
+      match /transactions/{transactionId} {
+        allow list: if isOwner(userId) || isAdmin();
+        allow get: if (isOwner(userId) || isAdmin()) && isValidId(transactionId);
+        allow create: if isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming()) &&
+                      exists(/databases/$(database)/documents/users/$(userId)/accounts/$(incoming().accountId)) &&
+                      exists(/databases/$(database)/documents/users/$(userId)/categories/$(incoming().categoryId));
+        allow update: if isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming()) && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['amount', 'type', 'categoryId', 'accountId', 'date', 'description', 'updatedAt', 'isEventual'])
+        );
+        allow delete: if isOwner(userId);
+
+        function isValidTransaction(data) {
+          return data.amount is number && data.amount >= 0 &&
+                 data.type in ['income', 'expense', 'purchase'] &&
+                 data.categoryId is string &&
+                 data.accountId is string &&
+                 data.date is string && // We use string for simple ISO dates or server timestamp
+                 (data.keys().hasAll(['amount', 'type', 'categoryId', 'accountId', 'date']) && data.keys().size() >= 5);
+        }
+      }
+
+      // Saving Funds
+      match /saving_funds/{savingFundId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(savingFundId) && isValidSavingFund(incoming());
+        allow update: if isOwner(userId) && isValidId(savingFundId) && isValidSavingFund(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidSavingFund(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 data.targetAmount is number && data.targetAmount >= 0 &&
+                 data.currentAmount is number && data.currentAmount >= 0 &&
+                 data.color is string &&
+                 (data.keys().hasAll(['name', 'targetAmount', 'currentAmount', 'color']) && data.keys().size() <= 10);
+        }
+      }
+
+      // Recurring Incomes
+      match /recurring_incomes/{recurringIncomeId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(recurringIncomeId) && isValidRecurringIncome(incoming());
+        allow update: if isOwner(userId) && isValidId(recurringIncomeId) && isValidRecurringIncome(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidRecurringIncome(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 data.amount is number && data.amount >= 0 &&
+                 data.accountId is string &&
+                 data.categoryId is string &&
+                 data.dayOfMonth is number && data.dayOfMonth >= 1 && data.dayOfMonth <= 31 &&
+                 data.active is bool &&
+                 (!data.keys().hasAll(['frequency']) || data.frequency is string) &&
+                 (!data.keys().hasAll(['startMonth']) || data.startMonth is number) &&
+                 (!data.keys().hasAll(['description']) || data.description is string) &&
+                 (data.keys().hasAll(['name', 'amount', 'accountId', 'categoryId', 'dayOfMonth', 'active']) && data.keys().size() <= 15);
+        }
+      }
+
+      // Recurring Expenses
+      match /recurring_expenses/{recurringExpenseId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(recurringExpenseId) && isValidRecurringExpense(incoming());
+        allow update: if isOwner(userId) && isValidId(recurringExpenseId) && isValidRecurringExpense(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidRecurringExpense(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 data.amount is number && data.amount >= 0 &&
+                 data.paymentType is string && data.paymentType in ['fixed', 'variable'] &&
+                 data.accountId is string &&
+                 data.categoryId is string &&
+                 data.dayOfMonth is number && data.dayOfMonth >= 1 && data.dayOfMonth <= 31 &&
+                 data.startDate is string &&
+                 data.frequency is string && data.frequency in ['weekly', 'biweekly', 'monthly', 'custom_months'] &&
+                 data.active is bool &&
+                 (!data.keys().hasAll(['subcategoryId']) || data.subcategoryId is string) &&
+                 (!data.keys().hasAll(['intervalMonths']) || data.intervalMonths is number) &&
+                 (!data.keys().hasAll(['description']) || data.description is string) &&
+                 (!data.keys().hasAll(['lastAppliedDate']) || data.lastAppliedDate is string) &&
+                 (data.keys().hasAll(['name', 'amount', 'paymentType', 'accountId', 'categoryId', 'dayOfMonth', 'active', 'startDate', 'frequency']) && data.keys().size() <= 22 &&
+                 (!data.keys().hasAll(['linkedStoreId']) || data.linkedStoreId is string || data.linkedStoreId == null) &&
+                 (!data.keys().hasAll(['linkedStoreName']) || data.linkedStoreName is string || data.linkedStoreName == null) &&
+                 (!data.keys().hasAll(['linkedProductId']) || data.linkedProductId is string || data.linkedProductId == null) &&
+                 (!data.keys().hasAll(['linkedProductName']) || data.linkedProductName is string || data.linkedProductName == null) &&
+                 (!data.keys().hasAll(['decreaseStockQty']) || data.decreaseStockQty is number || data.decreaseStockQty == null) &&
+                 (!data.keys().hasAll(['updatedAt']) || data.updatedAt is string || data.updatedAt == null));
+        }
+      }
+
+      // Fixed Assets
+      match /fixed_assets/{fixedAssetId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(fixedAssetId) && isValidFixedAsset(incoming());
+        allow update: if isOwner(userId) && isValidId(fixedAssetId) && isValidFixedAsset(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidFixedAsset(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+                 data.estimatedValue is number && data.estimatedValue >= 0 &&
+                 (!data.keys().hasAll(['category']) || data.category is string) &&
+                 (!data.keys().hasAll(['purchaseDate']) || data.purchaseDate is string) &&
+                 (!data.keys().hasAll(['description']) || data.description is string) &&
+                 (!data.keys().hasAll(['location']) || data.location is string) &&
+                 (!data.keys().hasAll(['status']) || data.status is string) &&
+                 (data.keys().hasAll(['name', 'estimatedValue']) && data.keys().size() <= 12);
+        }
+      }
+
+      // Shopping Lists
+      match /shopping_lists/{shoppingListId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(shoppingListId) && isValidShoppingList(incoming());
+        allow update: if isOwner(userId) && isValidId(shoppingListId) && isValidShoppingList(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidShoppingList(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 data.status in ['pending', 'completed'] &&
+                 data.items is list &&
+                 (data.keys().hasAll(['name', 'status', 'items']) && data.keys().size() <= 10);
+        }
+      }
+
+      // Debts
+      match /debts/{debtId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(debtId) && isValidDebt(incoming());
+        allow update: if isOwner(userId) && isValidId(debtId) && isValidDebt(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidDebt(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 data.creditor is string && data.creditor.size() > 0 && data.creditor.size() <= 100 &&
+                 data.totalAmount is number && data.totalAmount >= 0 &&
+                 data.remainingAmount is number && data.remainingAmount >= 0 &&
+                 data.interestRate is number && data.interestRate >= 0 &&
+                 data.minimumPayment is number && data.minimumPayment >= 0 &&
+                 data.status in ['active', 'paid'] &&
+                 (data.keys().hasAll(['name', 'creditor', 'totalAmount', 'remainingAmount', 'minimumPayment', 'status']) && data.keys().size() <= 14);
+        }
+      }
+
+      // Debt Payments
+      match /debt_payments/{debtPaymentId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(debtPaymentId) && isValidDebtPayment(incoming()) &&
+                      exists(/databases/$(database)/documents/users/$(userId)/debts/$(incoming().debtId));
+        allow update: if isOwner(userId) && isValidId(debtPaymentId) && isValidDebtPayment(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidDebtPayment(data) {
+          return data.debtId is string &&
+                 data.amount is number && data.amount > 0 &&
+                 data.date is string &&
+                 data.accountId is string &&
+                 (data.keys().hasAll(['debtId', 'amount', 'date', 'accountId']) && data.keys().size() <= 8);
+        }
+      }
+
+      // Receivables
+      match /receivables/{receivableId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(receivableId) && isValidReceivable(incoming());
+        allow update: if isOwner(userId) && isValidId(receivableId) && isValidReceivable(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidReceivable(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+                 data.debtor is string && data.debtor.size() > 0 && data.debtor.size() <= 100 &&
+                 data.totalAmount is number && data.totalAmount >= 0 &&
+                 data.remainingAmount is number && data.remainingAmount >= 0 &&
+                 data.status in ['active', 'collected'] &&
+                 (data.keys().hasAll(['name', 'debtor', 'totalAmount', 'remainingAmount', 'status']) && data.keys().size() <= 16);
+        }
+      }
+
+      // Receivable Payments
+      match /receivable_payments/{receivablePaymentId} {
+        allow list, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(receivablePaymentId) && isValidReceivablePayment(incoming()) &&
+                      exists(/databases/$(database)/documents/users/$(userId)/receivables/$(incoming().receivableId));
+        allow update: if isOwner(userId) && isValidId(receivablePaymentId) && isValidReceivablePayment(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidReceivablePayment(data) {
+          return data.receivableId is string &&
+                 data.amount is number && data.amount > 0 &&
+                 data.date is string &&
+                 data.accountId is string &&
+                 (data.keys().hasAll(['receivableId', 'amount', 'date', 'accountId']) && data.keys().size() <= 8);
+        }
+      }
+    }
+  }
+}

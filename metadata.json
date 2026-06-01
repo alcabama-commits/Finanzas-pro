@@ -1,0 +1,8 @@
+{
+  "name": "Finanza Pro",
+  "description": "Gestor de gastos personales con límites personalizados, ciclos quincenales y análisis detallado de cuentas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

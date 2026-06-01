@@ -1,0 +1,325 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User settings and profile",
+      "type": "object",
+      "properties": {
+        "monthlyLimit": { "type": "number" },
+        "billingCycle": { "type": "string", "enum": ["15", "30"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["monthlyLimit", "billingCycle"]
+    },
+    "Account": {
+      "title": "Account",
+      "description": "A financial account (e.g., Cash, Bank, Credit Card)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "balance": { "type": "number" },
+        "icon": { "type": "string" },
+        "color": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "balance"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "A transaction category (e.g., Food, Salary)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense", "purchase"] },
+        "icon": { "type": "string" },
+        "color": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "type"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A financial transaction",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["income", "expense", "purchase"] },
+        "categoryId": { "type": "string" },
+        "accountId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "description": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["amount", "type", "categoryId", "accountId", "date"]
+    },
+    "PurchaseCategory": {
+      "title": "PurchaseCategory",
+      "description": "A category for purchases and inventory",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "subcategories": { "type": "array" },
+        "isCustom": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "PurchaseProduct": {
+      "title": "PurchaseProduct",
+      "description": "A purchase and inventory product",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "subcategory": { "type": "string" },
+        "isRegular": { "type": "boolean" },
+        "defaultPrice": { "type": "number" },
+        "lastStore": { "type": "string" },
+        "stock": { "type": "number" },
+        "minStock": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "categoryId", "stock"]
+    },
+    "PurchaseStore": {
+      "title": "PurchaseStore",
+      "description": "A shop or supermarket where products are bought",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "logoFileId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "RecurringIncome": {
+      "title": "RecurringIncome",
+      "description": "A recurring source of income which occurs periodically on a day of the month",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "amount": { "type": "number" },
+        "accountId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "dayOfMonth": { "type": "number" },
+        "description": { "type": "string" },
+        "lastAppliedDate": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "amount", "accountId", "categoryId", "dayOfMonth", "active"]
+    },
+    "RecurringExpense": {
+      "title": "RecurringExpense",
+      "description": "A recurring payment or obligation which occurs periodically on a day of the month or interval month",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentType": { "type": "string", "enum": ["fixed", "variable"] },
+        "accountId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "subcategoryId": { "type": "string" },
+        "dayOfMonth": { "type": "number" },
+        "startDate": { "type": "string" },
+        "frequency": { "type": "string", "enum": ["weekly", "biweekly", "monthly", "custom_months"] },
+        "intervalMonths": { "type": "number" },
+        "description": { "type": "string" },
+        "lastAppliedDate": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "amount", "paymentType", "accountId", "categoryId", "dayOfMonth", "active", "startDate", "frequency"]
+    },
+    "Debt": {
+      "title": "Debt",
+      "description": "A debt registry with creditors, principal amounts, and statuses",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "creditor": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "interestRate": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "minimumPayment": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "paid"] },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "creditor", "totalAmount", "remainingAmount", "minimumPayment", "status"]
+    },
+    "DebtPayment": {
+      "title": "DebtPayment",
+      "description": "A historical payment done towards a specific debt, linked to an account",
+      "type": "object",
+      "properties": {
+        "debtId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "accountId": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["debtId", "amount", "date", "accountId"]
+    },
+    "Receivable": {
+      "title": "Receivable",
+      "description": "An outstanding receivable registry specifying debtors, principal amounts, and statuses",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "debtor": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "interestRate": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "minimumPayment": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "collected"] },
+        "type": { "type": "string", "enum": ["loan", "work"] },
+        "invoiceSubmitted": { "type": "boolean" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "debtor", "totalAmount", "remainingAmount", "status"]
+    },
+    "ReceivablePayment": {
+      "title": "ReceivablePayment",
+      "description": "A customer/debtor payment done towards an outstanding receivable, deposited to an account",
+      "type": "object",
+      "properties": {
+        "receivableId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "accountId": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["receivableId", "amount", "date", "accountId"]
+    },
+    "CatalogProduct": {
+      "title": "CatalogProduct",
+      "description": "A shared product in stores catalog with shared pricing and stock across all users",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "store": { "type": "string" },
+        "price": { "type": "number" },
+        "stock": { "type": "number" },
+        "priceDate": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" },
+        "category": { "type": "string" },
+        "subcategory": { "type": "string" },
+        "isRegular": { "type": "boolean" },
+        "minStock": { "type": "number" }
+      },
+      "required": ["name", "store", "price", "stock", "priceDate"]
+    },
+    "CatalogStore": {
+      "title": "CatalogStore",
+      "description": "A shared shop or supermarket registered in the public catalog",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["store", "provider", "service", "consumption"] },
+        "logoUrl": { "type": "string" },
+        "logoFileId": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "address": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "PriceHistory": {
+      "title": "PriceHistory",
+      "description": "A ledger record tracking product price modifications over time, readable only by administrators",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "store": { "type": "string" },
+        "price": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "updatedByEmail": { "type": "string" },
+        "updatedByUid": { "type": "string" }
+      },
+      "required": ["productId", "productName", "store", "price", "date", "updatedByEmail", "updatedByUid"]
+    }
+  },
+  "firestore": {
+    "/catalog/{productId}": {
+      "schema": "CatalogProduct",
+      "description": "Shared product catalog and current stock available to all users"
+    },
+    "/catalog_stores/{storeId}": {
+      "schema": "CatalogStore",
+      "description": "Shared registered businesses and stores in the public catalog"
+    },
+    "/price_history/{historyId}": {
+      "schema": "PriceHistory",
+      "description": "Historical price adjustments accessible strictly to super administrators"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Store user preferences"
+    },
+    "/users/{userId}/accounts/{accountId}": {
+      "schema": "Account",
+      "description": "Store user accounts"
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Store user categories"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Store user transactions"
+    },
+    "/users/{userId}/purchase_categories/{purchaseCategoryId}": {
+      "schema": "PurchaseCategory",
+      "description": "Store purchase categories and subcategories"
+    },
+    "/users/{userId}/purchase_products/{purchaseProductId}": {
+      "schema": "PurchaseProduct",
+      "description": "Store items and inventory products"
+    },
+    "/users/{userId}/purchase_stores/{purchaseStoreId}": {
+      "schema": "PurchaseStore",
+      "description": "Store supermarkets or shops"
+    },
+    "/users/{userId}/recurring_incomes/{recurringIncomeId}": {
+      "schema": "RecurringIncome",
+      "description": "Store templates and states for recurring monthly incomes"
+    },
+    "/users/{userId}/recurring_expenses/{recurringExpenseId}": {
+      "schema": "RecurringExpense",
+      "description": "Store templates and states for recurring expenses or obligations"
+    },
+    "/users/{userId}/debts/{debtId}": {
+      "schema": "Debt",
+      "description": "Store active or completed debts"
+    },
+    "/users/{userId}/debt_payments/{debtPaymentId}": {
+      "schema": "DebtPayment",
+      "description": "Store payments history tied to user debts and accounts"
+    },
+    "/users/{userId}/receivables/{receivableId}": {
+      "schema": "Receivable",
+      "description": "Store outstanding receivables"
+    },
+    "/users/{userId}/receivable_payments/{receivablePaymentId}": {
+      "schema": "ReceivablePayment",
+      "description": "Store history of payments received on receivables"
+    }
+  }
+}
